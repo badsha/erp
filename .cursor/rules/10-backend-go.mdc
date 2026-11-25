@@ -1,0 +1,37 @@
+---
+description: Go backend conventions for the ERP API server.
+globs: server/**/*.go
+alwaysApply: false
+---
+
+# Go Backend Rules
+
+Applies to everything under `server/`.
+
+- Structure: `internal/<domain>` per business area (products, inventory, pos, rma,
+  procurement, accounting, auth) as set up in spec/00-overview.md. Each domain package
+  exposes a service layer (plain functions or a struct with methods) that `cmd/api`
+  wires into HTTP handlers. Handlers do not contain business logic.
+- Database access: use a single `db` package for the connection pool and transaction
+  helpers. Every multi-step write (e.g., "mark serial sold + create invoice_item + check
+  stock") goes through an explicit `WithTransaction(ctx, func(tx) error {...})` wrapper —
+  no bare multi-statement writes outside a transaction.
+- Errors: define domain-specific sentinel errors (e.g., `ErrSerialNotAvailable`,
+  `ErrInsufficientStock`) in each domain package. Handlers map these to HTTP status codes
+  in one place (a shared error-to-status mapper), not ad hoc per handler.
+- Concurrency: any stock/serial mutation must use `SELECT ... FOR UPDATE` (or equivalent
+  row locking) inside the transaction to prevent two concurrent requests from selling the
+  same serial or overselling bulk stock. This is required, not optional — see
+  spec/02-build-order.md Step 2 for the specific race condition to guard against.
+- Config: all configuration (DB connection string, port, JWT secret, VAT defaults if
+  any) loaded once at startup via a single `config` package reading environment
+  variables, with explicit required/optional fields and sane validation on startup
+  (fail fast if a required var is missing — don't fail silently later at runtime).
+- Testing: table-driven tests (`[]struct{ name string; ... }` + `t.Run`) for service-layer
+  logic. Use a real test Postgres instance (via `docker-compose` or testcontainers) for
+  integration tests that hit the database — do not mock the database for logic that
+  depends on transactional/locking behavior, since that's exactly what needs verifying.
+- Migrations: one migration file per logical change, never edit a migration that has
+  already been applied in any shared environment — add a new one instead.
+- No global mutable state. Dependencies (DB pool, config, logger) are passed explicitly
+  (constructor injection), not package-level singletons, so tests can substitute them.

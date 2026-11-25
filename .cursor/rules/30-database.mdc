@@ -1,0 +1,33 @@
+---
+description: Database schema and migration conventions.
+globs: migrations/**/*.sql
+alwaysApply: false
+---
+
+# Database / Migration Rules
+
+Applies to everything under `migrations/`. Full table reference: spec/01-schema.md.
+
+- UUID primary keys everywhere (`gen_random_uuid()` via `pgcrypto`, or application-
+  generated UUIDv7 if you want time-ordered IDs — pick one and apply it consistently).
+- Every table gets `created_at` / `updated_at` timestamps (default `now()`,
+  `updated_at` maintained by trigger or application code — pick one approach and apply
+  it everywhere, don't mix).
+- `branch_id` is nullable on every table that references it (serials, stock_bulk,
+  invoices, purchase_orders). This is intentional: multi-branch is optional. Never add a
+  `NOT NULL` constraint on `branch_id`, and never write application logic that assumes
+  it is always present.
+- No enum values hardcoded redundantly across migrations and application code — define
+  Postgres `ENUM` types (or `CHECK` constraints) for status fields (serial status,
+  invoice status, RMA status, payment method) so the database itself rejects invalid
+  states, and generate/mirror the same values as typed constants in Go/TS rather than
+  retyping the list by hand in a second place.
+- Foreign keys with explicit `ON DELETE` behavior chosen deliberately per relationship
+  (e.g., `RESTRICT` on anything tied to a financial record like invoice_items; `CASCADE`
+  only where losing child rows is actually correct). Never leave the default unconsidered.
+- Index every foreign key column and every column used in a hot lookup path (serial
+  number lookup, invoice number lookup, barcode scan lookup).
+- Never edit a migration file that may have already run anywhere (local dev counts once
+  shared with the team). Add a new migration to change course.
+- Seed data must not assume any branch exists — branches are optional, so seed scripts
+  should work with zero branch rows present.

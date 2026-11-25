@@ -1,0 +1,34 @@
+---
+description: Next.js frontend conventions for the ERP backoffice and POS screens.
+globs: web/**/*.{ts,tsx}
+alwaysApply: false
+---
+
+# Frontend (Next.js) Rules
+
+Applies to everything under `web/`.
+
+- The POS screen is a plain online web page: it calls the backend API directly over
+  HTTPS, with no offline persistence, local database, or sync queue (this was decided
+  explicitly — see spec/00-overview.md). The only resilience expected is a short
+  client-side retry (a few seconds, a couple of attempts) on a failed request before
+  surfacing a clear error to the cashier. Do not add IndexedDB, service workers, or any
+  offline-first machinery.
+- Keyboard-first UX for POS: every action a cashier needs during a sale (add item by
+  barcode, add serial, apply payment method, hold cart, finalize) must be reachable via
+  keyboard shortcut, not just mouse click. Define shortcuts in one shared constants file,
+  not scattered inline, so they stay consistent and documented.
+- Branches are optional throughout the UI: never assume a branch selector is required.
+  If the business has zero branches configured, all branch-scoped screens must still
+  function (treating the whole business as one implicit location).
+- Data fetching: use a single typed API client layer (e.g., generated from an OpenAPI
+  spec, or a thin typed wrapper) — no raw `fetch` calls with inline URL strings scattered
+  across components. Centralize base URL and auth header injection in one place.
+- Forms: validate on the client for UX, but never trust client validation alone — assume
+  the backend re-validates everything (this is a backend rule too, cross-reference
+  00-global.mdc).
+- No hardcoded currency symbols, VAT rates, or price formatting rules in components —
+  pull from a shared formatting utility configured from backend-provided settings.
+- Testing: component tests for anything with real interaction logic (the POS cart, the
+  RMA status stepper, serial lookup). Don't bother testing pure presentational
+  components with no logic — spend the effort where it matters.

@@ -1,0 +1,36 @@
+---
+description: Test coverage requirements across the whole repo.
+globs: **/*_test.go, **/*.test.ts, **/*.test.tsx
+alwaysApply: false
+---
+
+# Testing Rules
+
+- No feature is complete without tests. If you write a service function, endpoint, or
+  UI component with real logic, write its tests in the same change.
+- Required coverage per module (see spec/02-build-order.md for the exact edge cases):
+  - **Inventory**: duplicate serial registration rejected; warranty-remaining
+    calculation including expired and same-day-expiry cases; lookup of a nonexistent
+    serial returns a clear not-found, not a crash.
+  - **POS**: concurrent attempts to sell the same serial — exactly one must succeed;
+    concurrent bulk-stock deduction must never go negative; partial payment totals that
+    don't sum to the invoice total are rejected or explicitly flagged; hold/resume cart
+    round-trips correctly.
+  - **Transfers**: a dispatched serial not yet received is correctly excluded from both
+    branches' sellable stock; a receive-side mismatch (wrong serial scanned) is flagged,
+    not silently accepted.
+  - **RMA**: status transitions outside the defined order are rejected; a replacement
+    serial swap preserves the *original* warranty_start_date and warranty_months, not the
+    replacement's own.
+  - **Procurement**: landed cost allocation distributes proportionally and the sum of
+    allocated costs equals the total landed cost (no rounding leakage beyond a defined
+    tolerance).
+  - **Accounting**: every invoice confirmation, payment, and stock adjustment produces
+    a balanced double-entry (debits == credits); shift close correctly flags a variance
+    when counted cash doesn't match expected.
+  - **RBAC**: a user without a given permission is rejected at the service/middleware
+    layer even if they somehow reach the handler — don't rely on UI hiding alone.
+- Integration tests run against a real Postgres instance (docker-compose/testcontainers),
+  not an in-memory fake, for anything involving transactions or row locking.
+- Flag any module where you could not reasonably cover a case (e.g., a true network
+  partition) rather than silently skipping it.

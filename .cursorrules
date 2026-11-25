@@ -1,0 +1,19 @@
+# Legacy fallback
+
+This project uses Cursor's modern rules format: see `.cursor/rules/*.mdc`.
+If your Cursor version doesn't pick those up automatically, read them in this order
+before starting any task:
+
+1. .cursor/rules/00-global.mdc   (always applies — production-grade code, no
+   hardcoding, mandatory test coverage)
+2. .cursor/rules/10-backend-go.mdc
+3. .cursor/rules/20-frontend-web.mdc
+4. .cursor/rules/30-database.mdc
+5. .cursor/rules/40-testing.mdc
+
+Then read the spec, in order, before writing any code:
+
+1. spec/00-overview.md
+2. spec/01-schema.md
+3. spec/02-build-order.md
+4. spec/03-ecommerce-integration-deferred.md (build last — not part of this pass)

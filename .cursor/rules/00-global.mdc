@@ -1,0 +1,73 @@
+---
+description: Global engineering standards for the hardware-trading ERP. Always applies.
+globs:
+alwaysApply: true
+---
+
+# Global Rules — Hardware Trading ERP
+
+These rules apply to every file you touch in this repo, regardless of language or layer.
+They are non-negotiable defaults. If a specific task description conflicts with one of
+these, flag the conflict instead of silently picking one side.
+
+## 1. Production-grade only — no placeholder code
+
+- Never write TODO stubs, `// implement later`, mock return values, or fake data as a
+  substitute for real logic in anything presented as "done." If a piece is genuinely out
+  of scope for the current task, say so explicitly in your response — don't bury a stub
+  in the code and move on.
+- No `console.log`/`fmt.Println` debugging left in committed code. Use the project's
+  actual logging setup (structured logger on the backend; no raw prints).
+- Handle every error path you introduce. An `if err != nil { return err }` that silently
+  swallows context is not acceptable for anything touching money, stock, or serials —
+  wrap errors with enough context to debug from logs alone (what operation, what ID).
+- No silent failure in financial, inventory, or warranty logic. If an operation can fail
+  partially (e.g., payment recorded but invoice not finalized), it must be wrapped in a
+  transaction so it fails atomically, not partially.
+- Validate all external input (API request bodies, CSV imports, barcode scans) before
+  acting on it. Never trust a client-supplied price, quantity, or status transition.
+
+## 2. No hardcoding
+
+- No hardcoded VAT/tax rates, price values, warranty durations, branch names, currency
+  symbols, or thresholds (discount limits, aging-stock day counts, low-stock levels) in
+  code. These belong in the database (a settings/config table) or environment variables,
+  never as literals in business logic.
+- No hardcoded enum-like values duplicated across files (e.g., status strings). Define
+  them once (Go: typed constants; TS: a shared enum/union type) and import everywhere.
+- No hardcoded secrets, connection strings, or API keys anywhere in source. Everything
+  sensitive comes from environment variables, loaded via a single config module — never
+  read `os.Getenv`/`process.env` scattered across the codebase.
+- No hardcoded branch assumptions. Branches are optional in this system — never write
+  logic that assumes `branch_id` is always set. Always handle the null case explicitly
+  (see spec/01-schema.md).
+- Magic numbers in logic (retry counts, timeouts, pagination sizes) must be named
+  constants with a comment explaining the choice, not bare numbers inline.
+
+## 3. Test coverage is mandatory, not optional
+
+- Every new function containing business logic (stock deduction, serial status
+  transitions, invoice totals, VAT calculation, warranty math, RMA state transitions)
+  must ship with unit tests in the same PR/change — not added later.
+- Every new API endpoint must have at least one integration test exercising the happy
+  path and at least one exercising a realistic failure path (invalid input, conflicting
+  state, not-found).
+- Concurrency-sensitive logic (selling a serial, deducting bulk stock) must have a test
+  that simulates concurrent access and asserts no double-sell / no overselling.
+- Do not consider a feature "done" without tests. If you implement a feature and skip
+  tests, say so explicitly rather than presenting it as finished.
+- Target meaningful coverage of business logic, not coverage-for-its-own-sake: a test
+  that asserts a getter returns what was set adds nothing; a test that asserts a serial
+  can't be sold twice does. Prioritize accordingly — see spec/02-build-order.md for the
+  specific edge cases each module must cover.
+
+## 4. General code quality
+
+- Favor explicit, readable code over clever abstractions. This codebase will be
+  maintained by whoever picks it up next, possibly without full context.
+- Keep business logic out of HTTP handlers / API route files — handlers should parse,
+  call a service/use-case function, and format the response. Logic lives in a testable
+  layer underneath.
+- Every database write that should be atomic must be wrapped in a transaction.
+- Comment *why*, not *what*, for any non-obvious business rule (e.g., why warranty start
+  date is preserved across a serial swap — see spec/02-build-order.md Step 4).
